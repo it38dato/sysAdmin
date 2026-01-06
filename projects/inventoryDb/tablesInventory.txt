@@ -1,0 +1,36 @@
+tbase=> CREATE TABLE offices (
+id SERIAL PRIMARY KEY,
+office VARCHAR,
+building VARCHAR
+);
+tbase=> INSERT INTO offices (office, building)
+VALUES ('1', 'Улица1'),
+('2', 'Улица1'),
+...
+('8', 'Улица2'),
+('9', 'Улица2');
+tbase=> CREATE TABLE devices (
+id SERIAL PRIMARY KEY,
+device VARCHAR,
+title VARCHAR
+);
+tbase=> INSERT INTO devices (device, title)
+VALUES ('Atc', 'Panasonic kx-tda100ru'),
+('Bидеокамера белая', NULL),
+...
+('Усилитель мощности', 'Eurosound xz-400'),
+('8 port video splitter', NULL);
+tbase=> CREATE TABLE inventories (
+id SERIAL PRIMARY KEY,
+inventory VARCHAR,
+device_id INT REFERENCES devices(id),
+office_id INT REFERENCES offices(id),                      
+quantity INT,                        
+date TIMESTAMP
+);
+tbase=> INSERT INTO inventories (inventory, device_id, office_id, quantity, date)
+VALUES ('457', '1', '1', '1', '2017-12-12 12:12:12'),
+(NULL, '2', '1', '1', '2017-12-12 12:12:12'),
+...
+('556', '33', '9', '1', '2017-12-12 12:12:12'),
+('426', '32', '9', '1', '2017-12-12 12:12:12');
