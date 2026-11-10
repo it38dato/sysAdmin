@@ -1,0 +1,797 @@
+Task:
+В рамках импортозамещения протестировать дистрибутивы Redos и Alt и развернуть их в компьютерные классы.
+Decision:
+1. Установить Hyper-V в Windows Server 2012 c помощью Shell:
+PS C:\Windows\system32> Get-Module -ListAvailable
+ModuleType Version  Name                ExportedCo
+---------- -------  ----                ----------
+...
+Binary   1.1    Hyper-V               {Add-VMDvd
+...
+PS C:\Windows\system32> Import-Module -Name Hyper-V
+2. Развернуть виртуальную тестовую машину Redos в Hyber-v с помощью Powershell:
+PS C:\Windows\system32> Get-VM
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Alt Off 0     0         00:00:00 Работает нормально
+PS C:\Windows\system32> $ram=1*1024*1024*1024
+PS C:\Windows\system32> $ram
+1073741824
+PS C:\Windows\system32> $hdd=10*1024*1024*1024
+PS C:\Windows\system32> $hdd
+10737418240
+PS C:\Windows\system32> NEW-VM -Name Redos -MemoryStartupBytes $ram -NewVHDPath 'C:\Data\VM\Redos\Redos.vhdx'-NewVHD
+SizeBytes $hdd -Path 'C:\Data\VM\Redos'
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Redos Off 0     0         00:00:00 Работает нормально
+PS C:\Windows\system32> Get-VM
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Alt Off 0     0         00:00:00 Работает нормально
+Redos Off 0     0         00:00:00 Работает нормально
+PS C:\Windows\system32> Start-VM -name Redos
+PS C:\Windows\system32> Get-VM
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Alt Off   0     0         00:00:00 Работает нормально
+Redos Running 0     1024       00:00:16 Работает нормально
+PS C:\Windows\system32> Stop-VM Redos
+Подтверждение
+Hyper-V не удается завершить работу виртуальной машины Redos, так как служба интеграции по завершению работы недоступна.
+Во избежание потенциальной потери данных вы можете приостановить виртуальную машину или сохранить ее состояние. Другим
+вариантом является отключение виртуальной машины, но при этом возможна потеря данных.
+[Y] Да - Y [N] Нет - N [S] Приостановить - S [?] Справка (значением по умолчанию является "Y"): y
+PS C:\Windows\system32> Get-VM
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Alt Off 0     0         00:00:00 Работает нормально
+Redos Off 0     0         00:00:00 Работает нормально
+3. Установить и настроить дистрибутив Redos в виртуальной машине.
+- выбираем Install - выбрать размер разделов - поменяем систему разметки LVM на Standart Portition - нажимаем на click here to create them autmaticaly - установщик автоматически разделит диск - уменьшить размер корневого раздела / и раздел /home - Меняю у них размеры - Done - интернет настроить в Network & Host Name - Ethernet переключаем тумблер - Done - software Slection - minmal install- Done - запуск
+4. Установить виртуальный сервер AltLinux в Hyper-V.
+PS C:\Windows\system32> $ram=1*1024*1024*1024
+PS C:\Windows\system32> $ram
+1073741824
+PS C:\Windows\system32> $hdd=10*1024*1024*1024
+PS C:\Windows\system32> $hdd
+10737418240
+PS C:\Windows\system32> NEW-VM -Name Alt -MemoryStartupBytes $ram -NewVHDPath 'C:\Data\VM\Alt\Alt.vhdx'-NewVHD
+SizeBytes $hdd -Path 'C:\Data\VM\Alt'
+PS C:\Windows\system32> Start-VM -name Alt
+PS C:\Windows\system32> Get-VM
+Name State CPUUsage(%) MemoryAssigned(M) Uptime Status
+---- ----- ----------- ----------------- ------ ------
+Alt Off   0     0         00:00:00 Работает нормально
+5. Ввод компьютера в домен Windows и изменение имени хоста.
+[root@hvredos ~]# yum install join-to-domain
+[root@hvredos ~]# join-to-domain.sh
+[root@hvredos ~]# reboot
+[root@hvredos ~]# hostname hvredos.tdomain.ru
+[root@hvredos ~]# hostname
+hvredos.tdomain.ru
+[root@hvredos ~]# vim /etc/hostname
+[root@hvredos ~]# cat /etc/hostname
+hvredos.tdomain.ru
+[root@hvredos ~]# vim /etc/hosts
+[root@hvredos ~]# cat /etc/hosts
+127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1 localhost localhost.localdomain localhost6 localhost6.localdomain6
+127.0.0.1 hvredos.tdomain.ru hvredos
+6. Установка Консультант Плюс и подключение сетевых директорий с использованием automount и механизма Kerberos.
+- Для подключения скрытых сетевых каталогов необходимо экранировать символ $.
+- В файле /etc/krb5.conf нужно закомментировать строку (если она ещё не закомментирована).
+- Создать ярлык Консультант +. В случае замедленной работы можно добавить ключ /sprocess=0. При нормальной работе, не добавляйте этот ключ. Ключ /yes необходим для подавления сообщения об ошибке [WNetGetUniversalName ...] : NO_NETWORK
+[root@hvredos ~]# yum install wine winetricks
+# winetricks riched30 winhttp
+- Wine - Wine Configuration - Графика - уберите галочку в пункте "Разрешить менеджеру окон декорировать окна". - Для запуска «Консультант Плюс» на рабочей станции подключите сетевой диск с «Консультантом» - Сделать это можно с помощью подключения сетевых директорий с использованием automount и механизма Kerberos
+[root@hvredos ~]# smbclient -L hvredos -k
+Sharename Type Comment
+--------- ---- -------
+Consultant Disk
+ConsultantR Disk
+S Disk
+...
+[root@hvredos ~]# yum install cifs-utils autofs
+[root@hvredos ~]# klist
+Ticket cache: FILE:/tmp/krb5cc_1
+Default principal: tuser@tdomain.ru
+Valid starting Expires service principal
+31.08.2020 09:51:47 31.08.2020 19:51:47 krbtgt/tdomain.ru@tdomain.ru
+renew until 31.08.2020 19:51:47
+[root@hvredos ~]# vim /etc/auto.master
+[root@hvredos ~]# cat /etc/auto.master
+...
+/mnt/.hpwindows /etc/auto.samba --ghost
+[root@hvredos ~]# vim /etc/auto.samba
+[root@hvredos ~]# cat /etc/auto.samba
+Students -fstype=cifs,multiuser,cruid=tuser,sec=krb5,domain=tdomain.ru,vers=2.1 ://hpwindows/Students
+[root@hvredos ~]# vim /etc/auto.samba
+[root@hvredos ~]# cat /etc/auto.samba
+Consultant -fstype=cifs,multiuser,cruid=tuser,sec=krb5,domain=tdomain.ru,vers=2.1 ://hpwindows/Consultant\$
+[root@hvredos ~]# cat /etc/krb5.conf
+...
+default_ccache_name = KEYRING:persistent:%{uid}
+...
+[root@hvredos ~]# vim/etc/krb5.conf
+[root@hvredos ~]# cat /etc/krb5.conf
+...
+default_ccache_name = FILE:/tmp/krb5cc_%{uid}
+...
+[root@hvredos ~]# systemctl start autofs.service
+[root@hvredos ~]# systemctl enable autofs --now
+[root@hvredos ~]# ls /mnt/.hpwindows/Consultant/
+... cons.exe ...
+[root@hvredos ~]# winecfg
+[root@hvredos ~]# wine /mnt/.hpwindows/Сonsultant/cons.exe /linux /yes
+[root@hvredos ~]# vim /home/tuser@tdomain.ru/Рабочий\ стол/Consultant.desktop
+[root@hvredos ~]# cat /home/tuser@tdomain.ru/Рабочий\ стол/Consultant.desktop
+[Desktop Entry]
+Name=ConsultantPlus
+Exec=wine /mnt/.hpwindows/Сonsultant/cons.exe
+Type=Application
+StartupNotify=true
+Comment=ConsultantPlus
+icon=43D4_Cons.0
+StartupWMClass=c.exe
+7. Создание ярлыка для сетевой директории
+[root@hvredos ~]# ln -s /mnt/.hvredos/S /home/tuser@tdomain.ru/Рабочий\ стол/S
+8. Oграничение доступа к USB накопителям.
+[root@hvredos ~]# vim /etc/udev/rules.d/99-usb.rules
+[root@hvredos ~]# cat /etc/udev/rules.d/99-usb.rules
+ENV{ID_USB_DRIVER}=="usb-storage",ENV{UDISKS_IGNORE}="1"
+# udevadm control --reload-rules
+9. Запрет создания ярлыков и файлов на рабочем столе.
+[root@hvredos ~]# tune2fs -l /dev/sda1 | grep "Default mount options:"
+Default mount options: user_xattr acl
+[root@hvredos ~]# vim /home/tuser@tdomain.ru/.config/user-dirs.dirs
+[root@hvredos ~]# cat /home/tuser@tdomain.ru/.config/user-dirs.dirs
+# This file is written by xdg-user-dirs-update
+# If you want to change or add directories, just edit the line you're
+# interested in. All local changes will be retained on the next run
+# Format is XDG_xxx_DIR="$HOME/yyy", where yyy is a shell-escaped
+# homedir-relative path, or XDG_xxx_DIR="/yyy", where /yyy is an
+# absolute path. No other format is supported.
+#
+XDG_DESKTOP_DIR="$HOME/Рабочий стол"
+XDG_DOWNLOAD_DIR="$HOME/Загрузки"
+XDG_TEMPLATES_DIR="$HOME/Шаблоны"
+XDG_PUBLICSHARE_DIR="$HOME/Общедоступные"
+XDG_DOCUMENTS_DIR="$HOME/Документы"
+XDG_MUSIC_DIR="$HOME/Музыка"
+XDG_PICTURES_DIR="$HOME/Изображения"
+XDG_VIDEOS_DIR="$HOME/Видео"
+[root@hvredos ~]# ls -la /home/tuser@tdomain.ru/.config
+...
+-rw-------. 1 tuser ïîëüçîâàòåëè äîìåíà 714 àâã 31 09:52 user-dirs.dirs
+-rw-r--r--. 1 tuser ïîëüçîâàòåëè äîìåíà 5 àâã 31 09:52 user-dirs.locale
+[root@hvredos ~]# chown root:root /home/tuser@tdomain.ru/.config/user-dirs.dirs
+[root@hvredos ~]# ls -la /home/tuser@tdomain.ru/.config
+...
+-rw-------. 1 root root 714 àâã 31 09:52 user-dirs.dirs
+-rw-r--r--. 1 tuser ïîëüçîâàòåëè äîìåíà 5 àâã 31 09:52 user-dirs.locale
+[root@hvredos ~]# ls -la
+...
+drwxr-xr-x. 2 tuser ïîëüçîâàòåëè äîìåíà 4096 àâã 31 09:52 'Рабочий стол'
+...
+[root@hvredos ~]# chown -R root:root /home/tuser@tdomain.ru/Рабочий\ стол/
+[root@hvredos ~]# ls -la
+...
+drwxr-xr-x. 2 root root 4096 àâã 31 09:52 'Рабочий стол'
+drwxr-xr-x. 2 tuser ïîëüçîâàòåëè äîìåíà 4096 àâã 31 09:52 Øàáëîíû
+10. Как скрыть пользователей от экрана входа.
+[root@hvredos ~]# cat /var/lib/AccountsService/users/user
+[User]
+Language=
+XSession=
+SystemAccount=false
+[root@hvredos ~]# vim /var/lib/AccountsService/users/user
+[root@hvredos ~]# cat /var/lib/AccountsService/users/user
+[User]
+Language=
+XSession=gnome
+SystemAccount=true
+11. Добавление пользователя из доменной сети.
+[root@hvredos ~]# vim /var/lib/AccountsService/users/user
+[root@hvredos ~]# cat /var/lib/AccountsService/users/user
+[User]
+Language=
+XSession=
+Icon=/home/tuser@tdomain.ru/.face
+SystemAccount=false
+12. Отключить сетевые принтеры.
+[root@hvredos ~]# vim /etc/avahi/avahi-daemon.conf
+cat /etc/avahi/avahi-daemon.conf
+# This file is part of avahi.
+...
+enable-dbus=no
+...
+[root@hvredos ~]# reboot
+13.  Настройка оповещения и автоматического обновления пакетов в РЕД ОС с помощью yum-cron.
+- Если не требуется обновлять определенные пакеты (как вручную, так и автоматически), то добавляем их в исключение. Например, kernel и php.
+- Если не требуется обновлять пакеты ТОЛЬКО в автоматическом режиме, тогда в /etc/yum/yum-cron.conf , в раздел [base]
+[root@hvredos ~]# yum -y install yum-cron
+[root@hvredos ~]# vim /etc/yum/yum-cron.conf
+[root@hvredos ~]# cat /etc/yum/yum-cron.conf
+[commands]
+...
+apply_updates = no
+[root@hvredos ~]# vim /etc/yum/yum-cron.conf
+[root@hvredos ~]# cat /etc/yum/yum-cron.conf
+[commands]
+...
+apply_updates = yes
+[root@hvredos ~]# systemctl enable yum-cron --now
+[root@hvredos ~]# nano /etc/yum.conf
+exclude=kernel, php
+[root@hvredos ~]# nano /etc/yum/yum-cron.conf
+exclude=kernel* php*
+14. Развернуть Pxe сервер для развертывания Redos с загрузкой в Uefi по сети.
+[root@hvredos ~]# ifconfig
+enp2s0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST> mtu 1500
+inet tipwindowsserver netmask Mask1 broadcast IpAddr.255
+...
+[root@hvredos ~]# dnf install dhcp tftp-server syslinux httpd dnf-plugins-core -y
+[root@hvredos ~]# mkdir /var/lib/tftpboot/pxelinux.cfg
+[root@hvredos ~]# mkdir /var/lib/tftpboot/uefi
+[root@hvredos ~]# mkdir -p /var/lib/tftpboot/images/REDOS
+[root@hvredos ~]# cp /usr/share/syslinux/{chain.c32,mboot.c32,memdisk,menu.c32,pxelinux.0,ldlinux.c32,libutil.c32} /var/lib/tftpboot/
+[root@hvredos ~]# chmod 777 /var/lib/tftpboot/pxelinux.0
+[root@hvredos ~]# dnf download shim-x64 grub2-efi-x64 --downloaddir=/root/
+[root@hvredos ~]# cd /root/
+[root@hvredos ~]# rpm2cpio shim-x64-*.rpm | cpio -dimv
+[root@hvredos ~]# rpm2cpio grub2-efi-x64-*.rpm | cpio -dimv
+[root@hvredos ~]# cp ./boot/efi/EFI/BOOT/BOOTX64.EFI /var/lib/tftpboot/uefi
+[root@hvredos ~]# cp ./boot/efi/EFI/redos/grubx64.efi /var/lib/tftpboot/uefi
+[root@hvredos ~]# chmod 777 /var/lib/tftpboot/uefi/*.*
+[root@hvredos ~]# umount -t iso9660 -o loop redos-MUROM-7.3.2-20211027.0-Everything-x86_64-DVD1.iso /mnt/
+[root@hvredos ~]# cp -vR /mnt/* /var/lib/tftpboot/images/REDOS/
+[root@hvredos ~]# umount /mnt/
+[root@hvredos ~]# vim /etc/dhcp/dhcpd.conf
+[root@hvredos ~]# cat /etc/dhcp/dhcpd.conf
+non-authoritative;
+allow bootp;
+option space pxelinux;
+option pxelinux.magic code 208 = string;
+option pxelinux.configfile code 209 = text;
+option pxelinux.pathprefix code 210 = text;
+option pxelinux.reboottime code 211 = unsigned integer 32;
+option architecture-type code 93 = unsigned integer 16;
+subnet tipwindowsserver.0 netmask Mask1 {
+option routers tipwindowsserver;
+range tipwindowsserver.70 tipwindowsserver.80;
+class "pxeclients" {
+match if substring (option vendor-class-identifier, 0, 9) = "PXEClient";
+next-server tipwindowsserver;
+if option architecture-type = 00:07 {
+filename "uefi/grubx64.efi";
+}
+else {
+filename "pxelinux.0";
+}
+}
+}
+# systemctl enable dhcpd --now
+[root@hvredos ~]# vim /var/lib/tftpboot/pxelinux.cfg/default
+[root@hvredos ~]# cat /var/lib/tftpboot/pxelinux.cfg/default
+default menu.c32
+PROMPT 0
+TIMEOUT 150
+MENU TITLE PXE Menu
+LABEL REDOS 7.3
+MENU LABEL REDOS 7.3
+KERNEL images/REDOS/images/pxeboot/vmlinuz
+APPEND initrd=images/REDOS/images/pxeboot/initrd.img ramdisk_size=128000 ip=dhcp inst.repo=http://tipwindowsserver/images/REDOS/
+[root@hvredos ~]# vim /var/lib/tftpboot/uefi/grub.cfg
+[root@hvredos ~]# cat /var/lib/tftpboot/uefi/grub.cfg
+function load_video {
+insmod efi_gop
+insmod efi_uga
+insmod video_bochs
+insmod video_cirrus
+insmod all_video
+}
+load_video
+set gfxpayload=keep
+insmod gzio
+menuentry 'REDOS 7.3' {
+linux images/REDOS/images/pxeboot/vmlinuz ip=dhcp inst.repo=http://tipwindowsserver/images/REDOS/
+initrd images/REDOS/images/pxeboot/initrd.img
+}
+15. Используем web-сервер для публикации файлов дистрибутива РЕД ОС в локальной сети.
+[root@hvredos ~]# vim /etc/httpd/conf.d/pxeboot.conf
+[root@hvredos ~]# cat /etc/httpd/conf.d/pxeboot.conf
+Alias /images /var/lib/tftpboot/images
+<Directory /var/lib/tftpboot/images>
+Options Indexes FollowSymLinks
+Require ip 127.0.0.1 tipwindowsserver.0/24
+</Directory>
+[root@hvredos ~]# systemctl enable httpd --now
+16. Настройка и запуск службы tftp.
+[root@hvredos ~]# vim /usr/lib/systemd/system/tftp.service
+[root@hvredos ~]# cat /usr/lib/systemd/system/tftp.service
+...
+[Install]:
+WantedBy=multi-user.target
+Also=tftp.socket
+...
+[root@hvredos ~]# vim /usr/lib/systemd/system/tftp.socket
+[root@hvredos ~]# cat /usr/lib/systemd/system/tftp.socket
+...
+[Unit]
+Description=Tftp Server Activation Socket
+[Socket]
+ListenDatagram=0.0.0.0:69
+[Install]
+WantedBy=sockets.target
+...
+[root@hvredos ~]# systemctl daemon-reload
+[root@hvredos ~]# systemctl enable tftp --now
+[root@hvredos ~]# ausearch -c 'httpd' --raw | audit2allow -M my-httpd
+[root@hvredos ~]# semodule -i my-httpd.pp
+17. Автоматизация развертывания (kickstart)
+Создать файл kickstart, Записать файл на локальный или удаленный носитель, Создать загрузочный диск, с которого будет запускаться установка, Предоставить доступ к установочной структуре, Начать процесс установки.
+[root@hvredos ~]# dnf install pykickstart -y
+[root@hvredos ~]# cp /root/anaconda-ks.cfg /var/lib/tftpboot
+[root@hvredos ~]# mv /var/lib/tftpboot/anaconda-ks.cfg /var/lib/tftpboot/ks.cfg
+[root@hvredos ~]# vim /var/lib/tftpboot/pxelinux.cfg/default
+[root@hvredos ~]# cat /var/lib/tftpboot/pxelinux.cfg/default
+...
+APPEND initrd=images/REDOS/images/pxeboot/initrd.img ramdisk_size=128000 ip=dhcp method=http://tipwindowsserver/images/REDOS/ devfs=nomount inst.ks=http://tipwindowsserver/ks.cfg
+[root@hvredos ~]# vim /var/lib/tftpboot/uefi/grub.cfg
+[root@hvredos ~]# cat /var/lib/tftpboot/uefi/grub.cfg
+... {
+linux images/REDOS/images/pxeboot/vmlinuz ip=dhcp kernel vmlinuz inst.repo=http://tipwindowsserver/images/REDOS/ inst.ks=http://tipwindowsserver/ks.cfg
+initrd images/REDOS/images/pxeboot/initrd.img
+}
+[root@hvredos ~]# vim /var/lib/tftpboot/ks.cfg
+[root@hvredos ~]# cat /var/lib/tftpboot/ks.cfg
+# Здесь указываем раскладку клавиатуры
+keyboard --vckeymap=us --xlayouts='us','ru' --switch='grp:alt_shift_toggle'
+# Системная локаль
+lang ru_RU.UTF-8
+# Информация о сетевом интерфейсе и имя машины
+network --bootproto=dhcp --device=enp2s0 --noipv6 --activate
+network --hostname=hostname1337
+# Пароль Root представлен в виде хэш-суммы
+rootpw --iscrypted $6$DUu0yyOYMRbGS8gL$9zHYPsxROGEZdDKG0wnf7h8SGnKOp3V272De6oGTVUsz2uBLmEeiR6T6cInRN5dyWcxNXh5fVluEUTQ/3rmzB0
+# Настройка сервисов (в данном случае сервис по обновлению меток времени и дат)
+services --enabled="chronyd"
+# Настройка временной зоны
+timezone Europe/Moscow --isUtc
+#Настройка локального пользователя
+user --groups=wheel --name=mekka --password=$6$83fyYZ7KMS7G9t6A$E5/99/ffOwjUOo8THr1ngqGDdKMimpTZf3IT9S/SI98BTV7dta7GksLYnQEZjtqqyZQrwibSRlvYccRqHB7m8/ --iscrypted --gecos="Mekka"
+# Настройка xorg при загрузке
+xconfig --startxonboot
+# Указание загрузочного сектора и тип структуры
+bootloader --location=mbr --boot-drive=sda
+# Удаление всей информации с партиций для последующей установки
+clearpart --none --initlabel
+# Здесь указана вся разметка диска
+part /boot --fstype="xfs" --onpart=sda2
+part biosboot --fstype="biosboot" --noformat --onpart=sda4
+part pv.31 --fstype="lvmpv" --noformat --onpart=sda3
+part /boot/efi --fstype="efi" --onpart=sda1 --fsoptions="umask=0077,shortname=winnt"
+volgroup ro --noformat --useexisting
+logvol swap --fstype="swap" --useexisting --name=swap --vgname=ro
+logvol /home --fstype="xfs" --noformat --useexisting --name=home --vgname=ro
+logvol / --fstype="ext4" --useexisting --name=root --vgname=ro
+#дополнительные пакеты для установки
+%packages
+@^mate-desktop-environment
+@backup-client
+@base
+@branding
+@core
+@desktop-debugging
+@dial-up
+@directory-client
+@fonts
+@guest-agents
+@guest-desktop-agents
+@input-methods
+@internet-applications
+@internet-browser
+@java-platform
+@mate-desktop
+@multimedia
+@network-file-system-client
+@print-client
+@x11
+chrony
+%end
+#настройка аварийных дампов памяти в случае сбоев (оставить как есть)
+%addon com_redhat_kdump --enable --reserve-mb='auto'
+%end
+#настройка анаконды (оставить как есть)
+%anaconda
+pwpolicy root --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+pwpolicy user --minlen=6 --minquality=1 --notstrict --nochanges --emptyok
+pwpolicy luks --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+%end
+18. Настройка установки РЕД ОС по PXE через VNC вместо Kickstart.
+[root@hvredos ~]# vim /var/lib/tftpboot/pxelinux.cfg/default
+[root@hvredos ~]# cat /var/lib/tftpboot/pxelinux.cfg/default
+...
+APPEND initrd=images/REDOS/images/pxeboot/initrd.img ramdisk_size=128000 ip=dhcp method=http://tipwindowsserver/images/REDOS/ devfs=nomount inst.vnc inst.vncpassword=tpassword
+[root@hvredos ~]# vim /var/lib/tftpboot/uefi/grub.cfg
+[root@hvredos ~]# cat /var/lib/tftpboot/uefi/grub.cfg
+... {
+linux images/REDOS/images/pxeboot/vmlinuz ip=dhcp kernel vmlinuz inst.repo=http://tipwindowsserver/images/REDOS/ inst.vnc inst.vncpassword=tpassword
+initrd images/REDOS/images/pxeboot/initrd.img
+}
+19. Set up an ActiveDirectory/Login.
+root@hvalt:~# apt-get install task-auth-ad-sssd
+root@hvalt:~# net time set -S tdomain.ru
+# system-auth write ad tdomain.ru hvalt hvalt 'tuser' 'tpassword'
+Using short domain name -- hvalt
+Joined 'hvalt' to dns domain 'tdomain.ru'
+Successfully registered hostname with DNS
+failed to call wbcGetDisplayName: WBC_ERR_WINBIND_NOT_AVAILABLE
+Could not lookup sid S-1-5-21-965402400-3010625364-1855727791-513
+failed to call wbcGetDisplayName: WBC_ERR_WINBIND_NOT_AVAILABLE
+Could not lookup sid S-1-5-21-965402400-3010625364-1855727791-512
+root@hvalt:~# wbinfo -t
+checking the trust secret for domain hvredos via RPC calls succeeded
+root@hvalt:~# acc
+2 keyboards found
+qt.qpa.xcb: could not connect to display
+qt.qpa.plugin: Could not load the Qt platfohvredos plugin "xcb" in "" even though it was found.
+This applhvredosation failed to start because no Qt platfohvredos plugin could be initialized. Reinstalling the applhvredosation may fix this problem.
+Available platfohvredos plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, xcb.
+root@hvalt:~# exit
+root@hvalt:~# exit
+[root@hvredos ~]# ssh -X tuser@hvalt
+root@hvalt:~# su -
+root@hvalt:~# acc
+2 keyboards found
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/.private/root/runtime-root'
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+WARNING: (alterator lookout evaluation): imported module (alterator presentation events) overrides core binding `when'
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+libpng warning: hvredosCP: known incorrect sRGB profile
+root@hvalt:~# vim /etc/net/ifaces/eth0/resolv.conf
+root@hvalt:~# cat /etc/net/ifaces/eth0/resolv.conf
+nameserver tipwindowsserver
+root@hvalt:~# hostnamectl set-hostname hvalt.tdomain.ru
+root@hvalt:~# cat /etc/resolv.conf
+search tdomain.ru
+nameserver 127.0.0.1
+root@hvalt:~# vim /etc/resolv.conf
+root@hvalt:~# cat /etc/resolv.conf
+# Configuration for resolv(8)
+# See resolv.conf(5) for details
+resolv_conf_head='# Do not edit manually, use\n# /etc/net/ifaces/<interface>/resolv.conf instead.'
+resolv_conf=/etc/resolv.conf
+# These interfaces will always be processed first.
+interface_order='lo lo[0-9]* lo.*'
+# These interfaces will be processed next, unless they have a metrhvredos.
+dynamhvredos_order='tap[0-9]* tun[0-9]* vpn vpn[0-9]* wg[0-9]* ppp[0-9]* ippp[0-9]*'
+#Configuration files for named subscriber.
+named_zones=/var/lib/bind/etc/resolv-zones.conf
+named_options=/var/lib/bind/etc/resolv-options.conf
+#Configuration files for dnsmasq subscriber.
+dnsmasq_conf=/etc/dnsmasq.conf.d/60-resolv
+dnsmasq_resolv=/etc/resolv.conf.dnsmasq
+name_servers=127.0.0.1
+root@hvalt:~# vim /etc/resolv.conf
+root@hvalt:~# cat /etc/resolv.conf
+# Configuration for resolv(8)
+# See resolv.conf(5) for details
+resolv_conf_head='# Do not edit manually, use\n# /etc/net/ifaces/<interface>/resolv.conf instead.'
+resolv_conf=/etc/resolv.conf
+# These interfaces will always be processed first.
+#interface_order='lo lo[0-9]* lo.*'
+interface_order='lo lo[0-9]* lo.* eth0'
+search_domains=tdomain.ru
+# These interfaces will be processed next, unless they have a metrhvredos.
+dynamhvredos_order='tap[0-9]* tun[0-9]* vpn vpn[0-9]* wg[0-9]* ppp[0-9]* ippp[0-9]*'
+#Configuration files for named subscriber.
+named_zones=/var/lib/bind/etc/resolv-zones.conf
+named_options=/var/lib/bind/etc/resolv-options.conf
+#Configuration files for dnsmasq subscriber.
+dnsmasq_conf=/etc/dnsmasq.conf.d/60-resolv
+dnsmasq_resolv=/etc/resolv.conf.dnsmasq
+#name_servers=127.0.0.1
+root@hvalt:~# resolv -u
+root@hvalt:~# cat /etc/resolv.conf
+# Generated by resolv
+# Do not edit manually, use
+# /etc/net/ifaces/<interface>/resolv.conf instead.
+search tdomain.ru
+nameserver tipwindowsserver
+...
+nameserver 8.8.8.8
+root@hvalt:~# hostname
+hvalt.tdomain.ru
+root@hvalt:~# dig _kerberos._udp.tdomain.ru SRV | grep ^_kerberos
+_kerberos._udp.tdomain.ru. 600 IN SRV 0 100 88 M-1.tdomain.ru.
+...
+_kerberos._udp.tdomain.ru. 600 IN SRV 0 100 88 T-1.tdomain.ru.
+root@hvalt:~# dig _kerberos._tcp.tdomain.ru SRV | grep ^_kerberos
+_kerberos._tcp.tdomain.ru. 600 IN SRV 0 100 88 M-c.tdomain.ru.
+...
+_kerberos._tcp.tdomain.ru. 600 IN SRV 0 100 88 T-1.tdomain.ru.
+root@hvalt:~# cat /etc/krb5.conf | grep default_realm
+default_realm = tdomain.ru
+# default_realm = EXAMPLE.COM
+root@hvalt:~# cat /etc/krb5.conf | grep dns_lookup_realm
+dns_lookup_realm = false
+root@hvalt:~# cat /etc/krb5.conf | grep dns_lookup_kdc
+dns_lookup_kdc = true
+root@hvalt:~# exit
+[root@hvredos ~]# ssh -X tuser@hvalt
+root@hvalt:~# kinit tuser
+root@hvalt:~# klist
+Thvredosket cache: KEYRING:persistent:0:krb_ccache_CCjHpN1
+Default principal: a-r@tdomain.ru
+Valid starting Expires   Servhvredose principal
+10.08.2022 12:30:34 10.08.2022 22:30:34 krbtgt/tdomain.ru@tdomain.ru
+renew until 17.08.2022 12:30:32
+root@hvalt:~# apt-get install samba-client
+root@hvalt:~# cat /etc/samba/smb.conf | grep realm
+realm = tdomain.ru
+root@hvalt:~# cat /etc/samba/smb.conf | grep workgroup
+workgroup = hvalt
+root@hvalt:~# cat /etc/samba/smb.conf | grep netbios
+netbios name = hvalt
+root@hvalt:~# cat /etc/samba/smb.conf | grep security
+security = ads
+root@hvalt:~# cat /etc/samba/smb.conf | grep method
+kerberos method = system keytab
+root@hvalt:~# cat /etc/samba/smb.conf | grep idmap
+  idmap config * : range = 200000-2000200000
+  idmap config * : backend = sss
+root@hvalt:~# vim /etc/samba/smb.conf
+root@hvalt:~# cat /etc/samba/smb.conf | grep idmap
+  idmap config * : range = 200000-2000200000
+;  idmap config * : backend = sss
+idmap config * : backend = tdb
+# testpahvalt
+Load smb config files from /etc/samba/smb.conf
+Loaded servhvredoses file OK.
+Weak crypto is allowed
+Server role: ROLE_DOMAIN_MEMBER
+Press enter to see a dump of your servhvredose definitions
+# Global parameters
+[global]
+kerberos method = system keytab
+machine password timeout = 0
+realm = tdomain.ru
+security = ADS
+template homedir = /home/tdomain.ru/%U
+template shell = /bin/bash
+winbind use default domain = Yes
+workgroup = hvredos
+idmap config * : range = 200000-2000200000
+idmap config * : backend = tdb
+[share]
+comment = Commonplace
+path = /srv/share
+read only = No
+[homes]
+browseable = No
+comment = Home Directory for '%u'
+read only = No
+root@hvalt:~# cat /etc/hosts
+127.0.0.1 localhost.localdomain localhost
+root@hvalt:~# vim /etc/hosts
+root@hvalt:~# cat /etc/hosts
+127.0.0.1 hvalt.tdomain.ru hvalt
+root@hvalt:~# net ads join -U tuser
+Enter tuser's password:
+Using short domain name -- hvalt
+Joined 'hvalt' to dns domain 'tdomain.ru'
+root@hvalt:~# klist -k -e
+Keytab name: FILE:/etc/krb5.keytab
+KVNO Principal
+---- --------------------------------------------------------------------------
+9 host/hvalt.tdomain.ru@tdomain.ru (aes256-cts-hmac-sha1-96)
+9 host/hvalt@tdomain.ru (aes256-cts-hmac-sha1-96)
+9 host/hvalt.tdomain.ru@tdomain.ru (aes128-cts-hmac-sha1-96)
+9 host/hvalt@tdomain.ru (aes128-cts-hmac-sha1-96)
+9 host/hvalt.tdomain.ru@tdomain.ru (DEPRECATED:arcfour-hmac)
+9 host/hvalt@tdomain.ru (DEPRECATED:arcfour-hmac)
+9 hvalt$@tdomain.ru (aes256-cts-hmac-sha1-96)
+9 hvalt$@tdomain.ru (aes128-cts-hmac-sha1-96)
+9 hvalt$@tdomain.ru (DEPRECATED:arcfour-hmac)
+8 host/hvalt.tdomain.ru@tdomain.ru (aes256-cts-hmac-sha1-96)
+8 host/hvalt@tdomain.ru (aes256-cts-hmac-sha1-96)
+8 host/hvalt.tdomain.ru@tdomain.ru (aes128-cts-hmac-sha1-96)
+8 host/hvalt@tdomain.ru (aes128-cts-hmac-sha1-96)
+8 host/hvalt.tdomain.ru@tdomain.ru (DEPRECATED:arcfour-hmac)
+8 host/hvalt@tdomain.ru (DEPRECATED:arcfour-hmac)
+8 hvalt$@tdomain.ru (aes256-cts-hmac-sha1-96)
+8 hvalt$@tdomain.ru (aes128-cts-hmac-sha1-96)
+8 hvalt$@tdomain.ru (DEPRECATED:arcfour-hmac)
+root@hvalt:~# apt-get install sssd-ad
+root@hvalt:~# cat /etc/sssd/sssd.conf
+[sssd]
+config_file_version = 2
+servhvredoses = nss, pam
+# Managed by system facility command:
+## control sssd-drop-privileges unprivileged|privileged|default
+user = _sssd
+# SSSD will not start if you do not configure any domains.
+domains = tdomain.ru
+[nss]
+[pam]
+[domain/tdomain.ru]
+id_provider = ad
+auth_provider = ad
+chpass_provider = ad
+access_provider = ad
+default_shell = /bin/bash
+fallback_homedir = /home/%d/%u
+debug_level = 0
+; cache_credentials = false
+ad_gpo_ignore_unreadable = true
+ad_gpo_access_control = pehvredosissive
+ad_update_samba_machine_account_password = true
+root@hvalt:~# vim /etc/sssd/sssd.conf
+root@hvalt:~# cat /etc/sssd/sssd.conf
+[sssd]
+config_file_version = 2
+servhvredoses = nss, pam
+# Managed by system facility command:
+## control sssd-drop-privileges unprivileged|privileged|default
+#user = _sssd
+user=root
+# SSSD will not start if you do not configure any domains.
+domains = tdomain.ru
+[nss]
+[pam]
+[domain/tdomain.ru]
+id_provider = ad
+auth_provider = ad
+chpass_provider = ad
+access_provider = ad
+;ldap_id_mapping = False
+default_shell = /bin/bash
+fallback_homedir = /home/%d/%u
+debug_level = 0
+;use_fully_qualified_names = True
+; cache_credentials = True
+ad_gpo_ignore_unreadable = true
+ad_gpo_access_control = pehvredosissive
+ad_update_samba_machine_account_password = true
+root@hvalt:~# grep sss /etc/nsswitch.conf
+passwd: files sss
+shadow: tcb files sss
+group: files [SUCCESS=merge] sss role
+root@hvalt:~# control system-auth sss
+root@hvalt:~# servhvredose sssd status
+active
+root@hvalt:~# servhvredose sssd start
+root@hvalt:~# getent passwd tuser
+tuser:*:1-9:1-3:в-н:/home/tdomain.ru/tuser:/bin/bash
+root@hvalt:~# id tuser
+uid=1-9(tuser) gid=1-3(пользователи домена) группы=1-3(пользователи домена),1-8(администраторы dhcp),1-0(tuser),11-0(пользователи филиалы),1-1(tuser),1-9(i-n)
+root@hvalt:~# net ads info
+LDAP server: IpAddr2
+LDAP server name: MOW-1.tdomain.ru
+Realm: tdomain.ru
+Bind Path: dc=hvalt,dc=RU
+LDAP port: 389
+Server time: Ср, 10 авг 2022 13:08:06 +08
+KDC server: IpAddr2
+Server time offset: 0
+Last machine account password change: Ср, 10 авг 2022 12:50:51 +08
+root@hvalt:~# net ads testjoin
+Join is OK
+root@hvalt:~# cat /etc/lightdm/lightdm.conf | grep greeter-hide-
+# greeter-hide-users = True to hide the user list
+#greeter-hide-users=false
+greeter-hide-users = true
+root@hvalt:~# cat /etc/lightdm/lightdm-gtk-greeter.conf | grep show-language
+show-language-selector = false
+root@hvalt:~# cat /etc/lightdm/lightdm-gtk-greeter.conf | grep show-indhvredosators
+root@hvalt:~# vim /etc/lightdm/lightdm-gtk-greeter.conf
+root@hvalt:~# cat /etc/lightdm/lightdm-gtk-greeter.conf | grep show-indhvredosators
+show-indhvredosators=~a11y;~power;~session;~language
+root@hvalt:~# vim /etc/lightdm/lightdm-gtk-greeter.conf
+root@hvalt:~# cat /etc/lightdm/lightdm-gtk-greeter.conf | grep enter-
+enter-username = true
+root@hvalt:~# reboot
+20. Учетные записи и групп в Альт Линукс.
+root@hvalt:~# apt-get install libnss-role
+root@hvalt:~# groupadd -r localadmins
+groupadd: группа «localadmins» уже существует
+root@hvalt:~# groupadd -r remote
+groupadd: группа «remote» уже существует
+root@hvalt:~# control sshd-allow-groups enabled
+root@hvalt:~# sed -i 's/AllowGroups.*/AllowGroups = remote/' /etc/openssh/sshd_config
+root@hvalt:~# roleadd users cdwriter cdrom audio proc radio camera floppy xgrp scanner uucp fuse
+root@hvalt:~# roleadd localadmins wheel remote vboxusers
+root@hvalt:~# roleadd 'Domain Users' users
+Error 156: No such group
+root@hvalt:~# roleadd 'Пользователи домена' users
+root@hvalt:~# roleadd 'Администраторы домена' localadmins
+root@hvalt:~# rolelst
+users:cdwriter,cdrom,audio,proc,radio,camera,floppy,xgrp,scanner,uucp,fuse,video,vboxusers,vboxadd
+localadmins:wheel,remote,vboxusers,vboxadd
+пользователи домена:users
+администраторы домена:localadmins
+powerusers:remote,vboxadd,vboxusers
+vboxadd:vboxsf
+root@hvalt:~# id tuser
+uid=1-9(tuser) gid=1-3(пользователи домена) группы=1-3(пользователи домена),11-0(пользователи филиалы),1-9(i-n),1-0(tuser),1-1(tuser),1-8(администраторы dhcp),100(users),80(cdwriter),22(cdrom),81(audio),19(proc),83(radio),440(camera),71(floppy),466(xgrp),467(scanner),14(uucp),483(fuse),488(video),481(vboxusers),455(vboxadd),454(vboxsf)
+root@hvalt:~# roleadd 'tuser' localadmins
+root@hvalt:~# roleadd 'tuser' wheel
+root@hvalt:~# rolelst
+users:cdwriter,cdrom,audio,proc,radio,camera,floppy,xgrp,scanner,uucp,fuse,video,vboxusers,vboxadd
+localadmins:wheel,remote,vboxusers,vboxadd
+пользователи домена:users
+администраторы домена:localadmins
+tuser:localadmins
+powerusers:remote,vboxadd,vboxusers
+vboxadd:vboxsf
+root@hvalt:~# exit
+[root@hvredos ~]# ssh -X tuser@hvalt
+root@hvalt:~# id tuser
+uid=1-9(tuser) gid=1-3(пользователи домена) группы=1-3(пользователи домена),11-0(пользователи филиалы),1-9(i-n),1-0(tuser),1-1(tuser),1-8(администраторы dhcp),100(users),80(cdwriter),22(cdrom),81(audio),19(proc),83(radio),440(camera),71(floppy),466(xgrp),467(scanner),14(uucp),483(fuse),488(video),481(vboxusers),455(vboxadd),454(vboxsf),101(localadmins),10(wheel),110(remote)
+21. Добавить сетевые папки.
+root@hvalt:~# apt-get install autofs
+root@hvalt:~# vim /etc/auto.master
+root@hvalt:~# cat /etc/auto.master
+# Fohvredosat of this file:
+# mountpoint map options
+# For details of the fohvredosat look at autofs(8).
+/mnt/auto /etc/auto.tab -t 5
+/mnt/net /etc/auto.avahi -t 120
+/mnt/.tdirectory /etc/auto.samba --ghost
+root@hvalt:~# vim /etc/auto.samba
+root@hvalt:~# cat /etc/auto.samba
+s -fstype=cifs,multiuser,cruid=$USER,sec=krb5,domain=tdomain.ru,vers=1.0 ://hvalt/tdirectory1
+o -fstype=cifs,multiuser,cruid=$USER,sec=krb5,domain=tdomain.ru,vers=1.0 ://hvalt/tdirectory2
+root@hvalt:~# systemctl enable autofs
+root@hvalt:~# systemctl start autofs
+root@hvalt:~# ls -la /mnt/.tdirectory/
+drwxr-xr-x 4 root root 0 авг 11 14:09 .
+drwxr-xr-x 5 root root 4096 авг 11 14:09 ..
+d????????? ? ? ? ?   ? o
+d????????? ? ? ? ?   ? s
+22. Creating a Network Bridge interface.
+root@hvalt:~# mkdir /etc/net/ifaces/tethernet1
+root@hvalt:~# cp /etc/net/ifaces/tethernet/* /etc/net/ifaces/tethernet1
+root@hvalt:~# rm -f /etc/net/ifaces/tethernet/{i,r}*
+root@hvalt:~# ls /etc/net/ifaces/tethernet1/
+ipv4address options resolv.conf
+root@hvalt:~# cat /etc/net/ifaces/tethernet1/options
+BOOTPROTO=dhcp
+TYPE=eth
+NM_CONTROLLED=yes
+DISABLED=yes
+CONFIG_WIRELESS=no
+SYSTEMD_BOOTPROTO=dhcp4
+CONFIG_IPV4=yes
+SYSTEMD_CONTROLLED=no
+root@hvalt:~# vim /etc/net/ifaces/tethernet1/options
+root@hvalt:~# ls /etc/net/ifaces/
+default tethernet lo unknown tethernet1
+root@hvalt:~# vim /etc/net/ifaces/tethernet1/options
+root@hvalt:~# cat /etc/net/ifaces/tethernet1/options
+BOOTPROTO=static
+CONFIG_WIRELESS=no
+CONFIG_IPV4=yes
+HOST='tethernet'
+ONBOOT=yes
+TYPE=bri
+root@hvalt:~# ls /etc/net/ifaces/tethernet/
+ipv4address options resolv.conf
+root@hvalt:~# service network restart
+Source:
+# https://www.altlinux.org/ActiveDirectory/Login#%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0_%D0%BF%D0%B0%D0%BA%D0%B5%D1%82%D0%BE%D0%B2
+# https://www.altlinux.org/SSSD/AD
+# https://www.altlinux.org/%D0%A1%D0%B5%D1%82%D0%B5%D0%B2%D0%BE%D0%B9_%D0%BC%D0%BE%D1%81%D1%82
+# https://www.altlinux.org/PostgreSQL#%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0_%D0%B8_%D0%BD%D0%B0%D1%87%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9_%D0%B7%D0%B0%D0%BF%D1%83%D1%81%D0%BA
+# https://www.tecmint.com/install-postgresql-and-pgadmin-in-ubuntu/
+# https://o7planning.org/11353/install-pgadmin-on-ubuntu
+# https://redos.red-soft.ru/base/server-configuring/dbms/install-postgresql/?sphrase_id=53348
+# https://redos.red-soft.ru/base/server-configuring/dbms/pgadmin4/

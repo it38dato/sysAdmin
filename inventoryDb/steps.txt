@@ -1,0 +1,271 @@
+Task:
+Разработать БД инвентарцизация,  в котором будет хранится информация о технике в здании
+Decision:
+В папке projects\inventoryDb хранится проект по работе с БД
+1. Установка и настройка базы данных в PostgreSQL.
+root@hvalt:~# apt-get update
+root@hvalt:~# apt-get install postgresql12-server
+root@hvalt:~# /etc/init.d/postgresql initdb
+root@hvalt:~# systemctl start postgresql
+root@hvalt:~# systemctl enable postgresql
+root@hvalt:~# pg_isready
+root@hvalt:~# psql -U postgres
+postgres=# CREATE USER tuser WITH PASSWORD 'tpassword';
+postgres=# CREATE DATABASE tbase;
+postgres=# GRANT ALL PRIVILEGES ON DATABASE tbase to tuser;
+postgres=# psql -U postgres -c "\l+"
+                                     Список баз данных
+   Имя   | Владелец | Кодировка | LC_COLLATE | LC_CTYPE |   Права доступа   | Размер | Табл. пространство |         Опис
+ание         
+-------------+----------+-----------+-------------+-------------+-----------------------+---------+--------------------+----------------------
+----------------------
+tbase | postgres | UTF8   | ru_RU.UTF-8 | ru_RU.UTF-8 | =Tc/postgres     +| 8041 kB | pg_default     |
+       |     |     |       |       | postgres=CTc/postgres+|     |          |
+       |     |     |       |       | tuser=CTc/postgres  |     |          |
+postgres  | postgres | UTF8   | ru_RU.UTF-8 | ru_RU.UTF-8 |           | 8185 kB | pg_default     | default administrativ
+e connection database
+...
+postgres=# \c tbase
+tbase=# GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "tuser";
+tbase=# ALTER DATABASE tbase OWNER TO tuser;
+tbase=# \q
+root@kvmubuntu:~# apt install postgresql postgresql-contrib
+root@kvmubuntu:~# usermod -aG postgres tuser
+root@kvmubuntu:~# sudo -i -u postgres
+postgres@kvmubuntu:~$ psql
+postgres=# \q
+postgres@kvmubuntu:~$ createuser --interactive
+Enter name of role to add: tuser
+Shall the new role be a superuser? (y/n) y
+postgres@kvmubuntu:~$ createdb tbase
+postgres@kvmubuntu:~$ exit
+root@kvmubuntu:~# psql -U tuser -d tbase
+tbase=# \password
+tbase=# GRANT ALL PRIVILEGES ON DATABASE tbase to tuser;
+tbase=# GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "tuser";
+tbase=# ALTER DATABASE tbase OWNER TO tuser;
+tbase=# GRANT pg_read_all_settings TO tuser;
+tbase=# \conninfo
+You are connected to database "tbase" as user "tuser" via socket in "/var/run/postgresql" at port "5432".
+tbase=# \l+
+     List of databases
+Name | Owner | Encoding | Collate | Ctype | Access privileges | Size | Tablespace | Description
+-----------+----------+----------+-------------+-------------+-----------------------+---------+------------+--------------------------------------------
+tbase | tuser | UTF8 | en_US.UTF-8 | en_US.UTF-8 | =Tc/tuser +| 8561 kB | pg_default |
+| | | | | tuser=CTc/tuser | | |
+...
+tbase=# SHOW config_file;
+...
+/etc/postgresql/14/main/postgresql.conf
+tbase=# \q
+root@kvmubuntu:~# vim /etc/postgresql/14/main/postgresql.conf
+root@kvmubuntu:~# cat /etc/postgresql/14/main/postgresql.conf | grep listen_addresses
+listen_addresses = 'tipubuntu' # what IP address(es) to listen on;
+root@kvmubuntu:~# vim /etc/postgresql/14/main/pg_hba.conf
+root@kvmubuntu:~# cat /etc/postgresql/14/main/pg_hba.conf
+...
+# "local" is for Unix domain socket connections only
+host tbase tuser tipubuntu/32 md5
+local all all   peer
+root@kvmubuntu:~# systemctl restart postgresql
+tuser@kvmubuntu:~$ psql -U tuser -d tbase -h tipubuntu
+tbase=# \d
+Did not find any relations.
+tbase=# \q
+2. Сделаем так, чтобы с клиентской машины Redos мы могли подключаться к серверу AltLinux удаленно.
+root@hvalt:~# su - postgres -c "psql -c 'SHOW config_file;'"
+       config_file       
+-------------------------------------
+/var/lib/pgsql/data/postgresql.conf
+(1 строка)
+# echo "listen_addresses = 'IpAddr3, IpAddr2, hvalt'" >> /var/lib/pgsql/data/postgresql.conf
+[root@hvredos ~]# cat /var/lib/pgsql/data/pg_hba.conf
+...
+# "local" is for Unix domain socket connections only
+local all       all                   trust
+# IPv4 local connections:
+host  all       all       127.0.0.1/32      trust
+...
+[root@hvredos ~]# vim /var/lib/pgsql/data/pg_hba.conf
+[root@hvredos ~]# cat /var/lib/pgsql/data/pg_hba.conf | grep '10.38.'
+# "local" is for Unix domain socket connections only
+local all       all                   trust
+# IPv4 local connections:
+host  tbase      tuser       IpAddr2/21         md5
+host  all       all       127.0.0.1/32      trust
+root@hvalt:~# systemctl restart postgresql
+root@hvalt:~# systemctl status postgresql
+[root@hvredos ~]# psql -d tbase -U tuser -h hvalt
+3. Для работы с базой в графическом интерфейсе установим Pgadmin.
+root@hvalt:~# apt-get install pgadmin3
+root@hvalt:~# pgadmin3 &
+- add server - name - tuser - host - hvalt- password - tpassword - ok
+[root@hvredos ~]# dnf install postgresql-server
+root@hvalt:~# postgresql-setup initdb
+root@hvalt:~# systemctl enable postgresql
+root@hvalt:~# systemctl start postgresql
+root@hvalt:~# pg_isready
+[root@hvredos ~]# psql -d tbase -U tuser -h hvalt
+tbase=> \du
+                     Список ролей
+Имя роли |                Атрибуты                 | Член ролей
+----------+-------------------------------------------------------------------------+------------
+tuser |                                     | {}
+postgres | Суперпользователь, Создаёт роли, Создаёт БД, Репликация, Пропускать RLS | {}
+[root@hvredos ~]# dnf install pgadmin4 pgadmin4-qt
+[root@hvredos ~]# pgadmin4-qt &
+- root's password - add server - name - tuser - host - hvalt- password - tpassword - ok
+4. Создать таблицы. 
+- В первой таблице отметим в каких зданиях находятся кабинеты.
+- Вторая таблица отвечает за названия оборудований.
+- Третья таблица отвечает за инвентарные номера оборудований, кабинетов и даты изменения.
+tbase=> SELECT * FROM offices;
++====+========+===============+
+| id | office | building |
++====+========+===============+
+| 1 | 1 | Улица1  |
++----+--------+---------------+
+| 2 | 2 | Улица1  |
++----+--------+---------------+
+...
++----+--------+---------------+
+| 8 | 8 | Улица2  |
++----+--------+---------------+
+| 9 | 9 | Улица2  |
++----+--------+---------------+
+tbase=> SELECT * FROM devices;
++====+=================================================+======================================+
+| id | device           | title        |
++====+=================================================+======================================+
+| 1 | Atc           | Panasonic kx-tda100ru    |
++----+-------------------------------------------------+--------------------------------------+
+| 2 | Bидеокамера белая       | (null)       |
++----+-------------------------------------------------+--------------------------------------+
+...
++----+-------------------------------------------------+--------------------------------------+
+| 39 | Усилитель мощности       | Eurosound xz-400     |
++----+-------------------------------------------------+--------------------------------------+
+| 40 | 8 port video splitter       | (null)       |
++----+-------------------------------------------------+--------------------------------------+
+tbase=> SELECT * FROM inventories;
++====+=============+===========+===========+==========+=====================+
+| id | inventory | device_id | office_id | quantity | date    |
++====+=============+===========+===========+==========+=====================+
+| 1 | 457   | 1   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 2 | (null) | 2   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+...
++----+-------------+-----------+-----------+----------+---------------------+
+| 67 | 556   | 33  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 68 | 426   | 32  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+5. Мне нужно вывести информацию, где в первом столбце будет инвентарные номера, во втором столбце, устройство и его название, а в третьем столбце вывести кабинеты, где находятся те самые оборудования
+tbase=> SELECT inventory, device, title, office
+FROM inventories
+INNER JOIN devices
+ON inventories.device_id = devices.id
+INNER JOIN offices
+ON inventories.office_id = offices.id
+WHERE office_id='6';
++=============+=========================+=================+========+
+| inventory | device     | title   | office |
++=============+=========================+=================+========+
+| 008   | Колонки     | Sven sps-605 | 6 |
++-------------+-------------------------+-----------------+--------+
+| 707   | Мультимедийный проектор | Epson eb-965h | 6 |
++-------------+-------------------------+-----------------+--------+
+| 750   | Компьютер   | Nuc mini pc kit | 6 |
++-------------+-------------------------+-----------------+--------+
+6. Заметил ошибку в таблице, есть лишнее оборудование в кабинете. его на самом деле нету в кабинете и значит не должно быть в таблице.
+tbase=> DELETE FROM inventories
+WHERE id='64';
+SELECT inventory, device, title, office
+FROM inventories
+INNER JOIN devices
+ON inventories.device_id = devices.id
+INNER JOIN offices
+ON inventories.office_id = offices.id
+WHERE office_id='6';
++===========+=========================+=================+========+
+| inventory | device     | title   | office |
++===========+=========================+=================+========+
+| 707 | Мультимедийный проектор | Epson eb-965h | 6 |
++-----------+-------------------------+-----------------+--------+
+| 750 | Компьютер   | Nuc mini pc kit | 6 |
++-----------+-------------------------+-----------------+--------+
+tbase=> SELECT * FROM inventories;
++====+=============+===========+===========+==========+=====================+
+| id | inventory | device_id | office_id | quantity | date    |
++====+=============+===========+===========+==========+=====================+
+| 1 | 457   | 1   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 2 | (null) | 2   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+...
++----+-------------+-----------+-----------+----------+---------------------+
+| 67 | 556   | 33  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 68 | 426   | 32  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+7. Появилось новое обрудование, и нужно его внести в таблицу.
+tbase=> INSERT INTO inventories (inventory, device_id, office_id, quantity, date)
+VALUES ('testinv1', '39', '1', '1', '2017-12-12 12:12:12');
+tbase=> SELECT * FROM inventories;
++====+=============+===========+===========+==========+=====================+
+| id | inventory | device_id | office_id | quantity | date    |
++====+=============+===========+===========+==========+=====================+
+| 1 | 457   | 1   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 2 | (null) | 2   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+...
++----+-------------+-----------+-----------+----------+---------------------+
+| 68 | 426   | 32  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 69 | testinv1 | 39  | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+8. в предыдущей задаче не верные данные внес в таблицу, нужно подкорректировать.
+tbase=> UPDATE inventories
+SET inventory='testinv2', office_id='9'
+WHERE id='69';
+tbase=> SELECT * FROM inventories;
++====+=============+===========+===========+==========+=====================+
+| id | inventory | device_id | office_id | quantity | date    |
++====+=============+===========+===========+==========+=====================+
+| 1 | 457   | 1   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 2 | (null) | 2   | 1   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+...
++----+-------------+-----------+-----------+----------+---------------------+
+| 68 | 426   | 32  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+| 69 | testinv2 | 39  | 9   | 1  | 2017-12-12 12:12:12 |
++----+-------------+-----------+-----------+----------+---------------------+
+tbase=> SELECT inventory, device, title, office
+FROM inventories
+INNER JOIN devices
+ON inventories.device_id = devices.id
+INNER JOIN offices
+ON inventories.office_id = offices.id
+WHERE office_id='9';
++=============+==========================+==================+========+
+| inventory | device     | title   | office |
++=============+==========================+==================+========+
+| 650   | Компьютер    | Nuc   | 9 |
++-------------+--------------------------+------------------+--------+
+| 426   | Интерактиная доска | 80   | 9 |
++-------------+--------------------------+------------------+--------+
+| 556   | Короткофокусный проектор | Benq   | 9 |
++-------------+--------------------------+------------------+--------+
+| 010   | Колонки     | Microlab solo 1 | 9 |
++-------------+--------------------------+------------------+--------+
+| testinv2 | Усилитель мощности | Eurosound xz-400 | 9 |
++-------------+--------------------------+------------------+--------+
+Source:
+# https://www.digitalocean.com/community/tutorials/how-to-install-postgresql-on-ubuntu-22-04-quickstart - How To Install PostgreSQL on Ubuntu 22.04 [Quickstart].
+# https://uchet-jkh.ru/i/kak-izmenit-parol-k-baze-dannyx-postgresql/ - Измените пароль для выбранного пользователя.
+# https://asvignesh.in/how-to-get-the-postgresql-conf-file-location/ - Grant Role to the non-default user.
+# https://postgrespro.ru/docs/postgresql/9.5/manage-ag-createdb - Создание базы данных.

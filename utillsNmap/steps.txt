@@ -1,0 +1,222 @@
+Task:
+Для защиты выпускной экзаменационной работы по теме "Утилита для сканирования безопасности сети Nmap" подготовить несколько тестовых виртуальных машин ОС, настроить Vsftpd-сервер, Nginx-сервер, Proxy-сервер, просканировать виртуальные машины и настроить Iptables
+Decision:
+1. Выводим список текущих правил iptables и проанализируем какие порты открыты в сервере Centos.
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap tipcentos
+[root@kvmcentos ~]# yum install iptables-services
+[root@kvmcentos ~]# iptables --version
+[root@kvmcentos ~]# iptables -L -v
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+pkts bytes target prot opt in out source destination
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+pkts bytes target prot opt in out source destination
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+pkts bytes target prot opt in out source destination
+[root@kvmcentos ~]# systemctl start iptables
+[root@kvmcentos ~]# systemctl enable iptables
+[root@kvmcentos ~]# service iptables status
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap tipcentos
+...
+PORT STATE SERVICE
+22/tcp open ssh
+2. В сервере Centos Напишем набор правил iptables, в котором мы разрешаем все исходящие соединения и строго ограничиваем входящие.
+Доступ будет возможен по портам TCP: 21, 22, 25, 53, 80, 143, 443, по портам UDP: 20, 21, 53, также мы пропускаем пакеты для уже установленных соединений.
+С удаленной машины просканируем порты на нашем сервере.
+[root@kvmcentos ~]# chmod +x firewall.sh
+[root@kvmcentos ~]# ./firewall.sh
+[root@kvmcentos ~]# iptables -L -v
+Chain INPUT (policy DROP 1986 packets, 87384 bytes)
+pkts bytes target prot opt in out source destination
+0 0 ACCEPT all -- lo any anywhere anywhere
+79 5604 ACCEPT all -- any any anywhere anywhere state RELATED,ESTABLISHED
+9 396 ACCEPT tcp -- any any anywhere anywhere multiport dports ftp,ssh,smtp,domain,http,imap,https
+0 0 ACCEPT udp -- any any anywhere anywhere multiport dports domain,ftp,ftp-data
+0 0 ACCEPT icmp -- any any anywhere anywhere icmp echo-reply
+Chain FORWARD (policy DROP 0 packets, 0 bytes)
+pkts bytes target prot opt in out source destination
+Chain OUTPUT (policy DROP 0 packets, 0 bytes)
+pkts bytes target prot opt in out source destination
+0 0 ACCEPT all -- any lo anywhere anywhere
+60 7920 ACCEPT all -- any any anywhere anywhere state NEW,RELATED,ESTABLISHED
+[root@kvmcentos ~]# service iptables save
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap tipcentos
+...
+PORT STATE SERVICE
+21/tcp closed ftp
+22/tcp open ssh
+25/tcp closed smtp
+53/tcp closed domain
+80/tcp closed http
+143/tcp closed imap
+443/tcp closed https
+...
+3. Обнаружим активные устройства в сети.
+┌──(tuser㉿kvmkali)-[~]
+└─$ apt install nmap
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap -sL tipcentos/24
+...
+Nmap scan report for KvmKali (tipkali)
+...
+Nmap scan report for kvmcentos (tipcentos)
+...
+Nmap scan report for kvmubuntu (tipubuntu)
+...
+4. Просканируем хост и проанализируем порт ftp. В некоторых случаях можно вытащить логин и пароль. Такое происходит, когда используются параметры входа по умолчанию.
+[root@kvmcentos ~]# nmap -sV tipcentos
+...
+PORT STATE SERVICE VERSION
+21/tcp open ftp vsftpd 3.0.5
+22/tcp open ssh OpenSSH 8.7 (protocol 2.0)
+80/tcp open http nginx 1.22.1
+3128/tcp open http-proxy Squid http proxy 5.5
+...
+[root@kvmcentos ~]# nmap -sC tipcentos -p 21
+...
+PORT STATE SERVICE
+21/tcp open ftp
+...
+root@aw:/# find /usr/share/nmap/scripts/ -name '*.nse' | grep ftp
+...
+/usr/share/nmap/scripts/ftp-brute.nse
+...
+root@aw:/# nmap --script-help ftp-brute.nse
+...
+Performs brute force password auditing against FTP servers.
+...
+[root@kvmcentos ~]# nmap --script ftp-brute.nse tipcentos -p 21
+...
+PORT STATE SERVICE
+21/tcp open ftp
+| ftp-brute:
+| Accounts: No valid accounts found
+| Statistics: Performed 324 guesses in 642 seconds, average tps: 7.5
+|_ ERROR: The service seems to have failed or is heavily firewalled...
+...
+5. Сканируем диапазон портов.
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap -sT -p 21-80 tipcentos
+...
+PORT STATE SERVICE
+21/tcp open ftp
+22/tcp open ssh
+25/tcp closed smtp
+53/tcp closed domain
+6. Просканируем удаленный хост (агрессивный режим).
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap -A -T4 tipcentos
+...
+PORT STATE SERVICE VERSION
+20/tcp closed ftp-data
+21/tcp open ftp vsftpd 3.0.5
+22/tcp open ssh OpenSSH 8.7 (protocol 2.0)
+25/tcp closed smtp
+53/tcp closed domain
+143/tcp closed imap
+443/tcp closed https
+3128/tcp open http-proxy Squid http proxy 5.5
+|_http-server-header: squid/5.5
+|_http-title: ERROR: The requested URL could not be retrieved
+MAC Address: tmaccentos (QEMU virtual NIC)
+Aggressive OS guesses: Linux 2.6.32 - 3.13 (94%), Linux 2.6.22 - 2.6.36 (92%), Linux 3.10 (92%), Linux 3.10 - 4.11 (92%), Linux 2.6.39 (92%), Linux 2.6.32 (91%), Linux 3.2 - 4.9 (91%), Linux 2.6.32 - 3.10 (91%), Linux 2.6.18 (90%), Linux 3.16 - 4.6 (90%)
+No exact OS matches for host (test conditions non-ideal).
+Network Distance: 1 hop
+Service Info: OS: Unix
+TRACEROUTE
+HOP RTT ADDRESS
+1 0.83 ms tipcentos
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 24.18 seconds
+7. Перехватываем DNS-трафик между сервером и каким-нибудь узлом в сети.
+┌──(tuser㉿kvmkali)-[~]
+└─$ nmap tipwindows12
+...
+PORT STATE SERVICE
+53/tcp open domain
+80/tcp open http
+443/tcp open https
+...
+[root@kvmcentos ~]# tcpdump -i enp1s0 -n -nn -ttt 'host tipwindows12 and port 53'
+8. Перехватываем весь трафик для MAC-адреса tmaccentos на сетевом интерфейсе enp1s0.
+[root@kvmcentos ~]# ifconfig
+enp1s0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST> mtu 1500
+...
+ether tmaccentos txqueuelen 1000 (Ethernet)
+...
+[root@kvmcentos ~]# tcpdump -n -i enp1s0 "ether host tmaccentos"
+...
+┌──(tuser㉿kvmkali)-[~]
+└─$ ssh tuser@tipcentos
+[root@kvmcentos ~]# tcpdump -n -i enp1s0 "ether host tmaccentos"
+...
+00:11:12.536934 IP tipcentos.58598 > tipubuntu.22: Flags [.], ack 3730, win 501, options [nop,nop,TS val 3107339434 ecr 2462889902], length 0
+00:11:12.586762 IP tipubuntu.22 > tipcentos.58598: Flags [P.], seq 3730:3782, ack 2242, win 501, options [nop,nop,TS val 2462889993 ecr 3107339434], length 52
+00:11:12.586838 IP tipubuntu.22 > tipcentos.58598: Flags [P.], seq 3782:3898, ack 2242, win 501, options [nop,nop,TS val 2462889993 ecr 3107339434], length 116
+00:11:12.588205 IP tipcentos.58598 > tipubuntu.22: Flags [.], ack 3782, win 501, options [nop,nop,TS val 3107339485 ecr 2462889993], length 0
+00:11:12.588207 IP tipcentos.58598 > tipubuntu.22: Flags [.], ack 3898, win 501, options [nop,nop,TS val 3107339486 ecr 2462889993], length 0
+9. Перехватываем только ICMP-пакеты.
+[root@kvmcentos ~]# tcpdump -i enp1s0 -n -nn -ttt 'ip proto \icmp'
+...
+┌──(tuser㉿kvmkali)-[~]
+└─$ ping tipcentos
+...
+64 bytes from tipcentos: icmp_seq=1 ttl=64 time=0.692 ms
+64 bytes from tipcentos: icmp_seq=2 ttl=64 time=0.764 ms
+64 bytes from tipcentos: icmp_seq=3 ttl=64 time=0.868 ms
+64 bytes from tipcentos: icmp_seq=4 ttl=64 time=1.01 ms
+64 bytes from tipcentos: icmp_seq=5 ttl=64 time=1.13 ms
+^C
+...
+[root@kvmcentos ~]# tcpdump -i enp1s0 -n -nn -ttt 'ip proto \icmp'
+...
+00:00:00.000000 IP tipcentos > tipubuntu: ICMP echo request, id 4, seq 1, length 64
+00:00:00.000171 IP tipubuntu > tipcentos: ICMP echo reply, id 4, seq 1, length 64
+00:00:01.001145 IP tipcentos > tipubuntu: ICMP echo request, id 4, seq 2, length 64
+00:00:00.000077 IP tipubuntu > tipcentos: ICMP echo reply, id 4, seq 2, length 64
+00:00:01.001365 IP tipcentos > tipubuntu: ICMP echo request, id 4, seq 3, length 64
+00:00:00.000077 IP tipubuntu > tipcentos: ICMP echo reply, id 4, seq 3, length 64
+00:00:01.001375 IP tipcentos > tipubuntu: ICMP echo request, id 4, seq 4, length 64
+00:00:00.000077 IP tipubuntu > tipcentos: ICMP echo reply, id 4, seq 4, length 64
+00:00:01.001573 IP tipcentos > tipubuntu: ICMP echo request, id 4, seq 5, length 64
+00:00:00.000125 IP tipubuntu > tipcentos: ICMP echo reply, id 4, seq 5, length 64
+10. Перехватываем входящий трафик на порт 80. сохраняем статистику в файл my.log для первых 500 пакетов. Будет создан бинарный файл my.log.
+[root@kvmcentos ~]# tcpdump -v -i enp1s0 dst port 80
+...
+┌──(tuser㉿kvmkali)-[~]
+└─$ firefox tipcentos:80
+[root@kvmcentos ~]# tcpdump -v -i enp1s0 dst port 80
+...
+14:07:24.835633 IP (tos 0x0, ttl 64, id 15549, offset 0, flags [DF], proto TCP (6), length 60)
+kvmcentos.45022 > kvmubuntu.http: Flags [S], cksum 0x76d1 (incorrect -> 0x9a90), seq 1076682845, win 64240, options [mss 1460,sackOK,TS val 3110711737 ecr 0,nop,wscale 7], length 0
+14:07:24.836511 IP (tos 0x0, ttl 64, id 15550, offset 0, flags [DF], proto TCP (6), length 52)
+kvmcentos.45022 > kvmubuntu.http: Flags [.], cksum 0x76c9 (incorrect -> 0x51b3), ack 2952605173, win 502, options [nop,nop,TS val 3110711738 ecr 3247231251], length 0
+14:07:24.836838 IP (tos 0x0, ttl 64, id 15551, offset 0, flags [DF], proto TCP (6), length 412)
+kvmcentos.45022 > kvmubuntu.http: Flags [P.], cksum 0x7831 (incorrect -> 0xb0a2), seq 0:360, ack 1, win 502, options [nop,nop,TS val 3110711739 ecr 3247231251], length 360: HTTP, length: 360
+GET / HTTP/1.1
+Host: tipubuntu
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8
+Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+14:07:24.844920 IP (tos 0x0, ttl 64, id 15552, offset 0, flags [DF], proto TCP (6), length 52)
+kvmcentos.45022 > kvmubuntu.http: Flags [.], cksum 0x76c9 (incorrect -> 0x4285), ack 3522, win 489, options [nop,nop,TS val 3110711747 ecr 3247231260], length 0
+14:07:29.846014 IP (tos 0x0, ttl 64, id 15553, offset 0, flags [DF], proto TCP (6), length 52)
+kvmcentos.45022 > kvmubuntu.http: Flags [F.], cksum 0x76c9 (incorrect -> 0x2eef), seq 360, ack 3522, win 501, options [nop,nop,TS val 3110716748 ecr 3247231260], length 0
+14:07:29.846795 IP (tos 0x0, ttl 64, id 15554, offset 0, flags [DF], proto TCP (6), length 52)
+kvmcentos.45022 > kvmubuntu.http: Flags [.], cksum 0x76c9 (incorrect -> 0x1b63), ack 3523, win 501, options [nop,nop,TS val 3110716749 ecr 3247236262], length 0
+[root@kvmcentos ~]# tcpdump -v -n -w my.log dst port 80 -c 500
+...
+[root@kvmcentos ~]# ls my.log
+my.log
+[root@kvmcentos ~]# tcpdump -nr my.log | awk '{print root@aw:/#3}' | grep -oE '[0-9]{1,}\.[0-9]{1,}\.[0-9]{1,}\.[0-9]{1,}' | sort | uniq -c | sort -rn
+reading from file my.log, link-type EN10MB (Ethernet), snapshot length 262144
+dropped privs to tcpdump
+6 tipkali
+Source:
+# https://losst.ru/kak-polzovatsya-nmap-dlya-skanirovaniya-seti
+# https://blog.sedicomm.com/2016/12/16/iptables-ustanovka-i-nastrojka/?ysclid=ln3wplng53988958006#1

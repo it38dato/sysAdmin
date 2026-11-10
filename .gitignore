@@ -1,0 +1,8 @@
+.env
+backupFtpNokiaMrbts/outShellScriptFiles.txt
+backupFtpNokiaMrbts/outShellScriptFilesFTP.txt
+backupFtpNokiaMrbts/.idea
+backups/*
+backupFtpNokiaMrbts/scripts/__pycache__
+config.txt
+backupFtpNokiaMrbts/__pycache__
